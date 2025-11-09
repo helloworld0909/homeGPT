@@ -1,0 +1,38 @@
+name: home-gpt
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.11.0-x86_64
+    restart: unless-stopped
+    command: >
+      --model QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ
+      --gpu-memory-utilization 0.95
+      --max-model-len 100000
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    ipc: host
+
+  webui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - OPENAI_API_BASE_URL=http://localhost:8000/v1
+    depends_on:
+      - vllm
+
+volumes:
+  open-webui:
+    name: open-webui
