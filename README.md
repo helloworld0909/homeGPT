@@ -113,6 +113,20 @@ MODEL_KEY_EXTRA_ARGS=
 
 Then set `MODEL_NAME=model-key` to use the new model.
 
+### Customizing vLLM Parameters
+
+Each model can have additional vLLM parameters using the `EXTRA_ARGS` field. For example:
+
+```bash
+# Add tensor parallel size and enforce eager execution
+QWEN3_VL_32B_THINKING_EXTRA_ARGS=--tensor-parallel-size 2 --enforce-eager
+
+# Add custom chat template
+MODEL_KEY_EXTRA_ARGS=--chat-template /path/to/template.jinja
+```
+
+For a full list of available vLLM parameters, see the [vLLM documentation](https://vllm.readthedocs.io/).
+
 ### Docker Compose Configuration
 
 The stack uses the following configuration in `docker-compose.yml`:
