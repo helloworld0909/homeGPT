@@ -43,12 +43,19 @@ git clone https://github.com/helloworld0909/homeGPT.git
 cd homeGPT/docker
 ```
 
-2. Start the stack:
+2. (Optional) Select a model by editing `models.env`:
 ```bash
-docker compose up -d
+# Edit models.env and set MODEL_NAME to your desired model
+# Available models: qwen3-vl-30b, qwen3-vl-32b-thinking
+nano models.env
 ```
 
-3. Access the services:
+3. Start the stack:
+```bash
+./run.sh up -d
+```
+
+4. Access the services:
 - OpenWebUI: http://localhost:8080
 - vLLM API: http://localhost:8000
 
@@ -56,9 +63,24 @@ docker compose up -d
 
 ### vLLM Service
 - Base Image: vllm/vllm-openai:v0.11.0-x86_64
-- Model: QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ
+- Default Model: QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ
 - Port: 8000
-- GPU Memory Utilization: 95%
+- Default GPU Memory Utilization: 95%
+
+### Supported Models
+The stack supports multiple models through the `models.env` configuration:
+
+1. **qwen3-vl-30b** (default)
+   - Model: QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ
+   - GPU Memory: 95%
+   - Max Model Length: 100000
+
+2. **qwen3-vl-32b-thinking**
+   - Model: cpatonn/Qwen3-VL-32B-Thinking-AWQ-4bit
+   - GPU Memory: 95%
+   - Max Model Length: 100000
+
+To add more models, edit `docker/models.env` and add the model configuration following the existing pattern.
 
 ### OpenWebUI
 - Base Image: ghcr.io/open-webui/open-webui:main
@@ -67,14 +89,40 @@ docker compose up -d
 
 ## Configuration
 
+### Selecting a Model
+
+The stack uses a `models.env` file to configure which model to use. To change models:
+
+1. Edit `docker/models.env`
+2. Set `MODEL_NAME` to one of the available models:
+   - `qwen3-vl-30b` (default)
+   - `qwen3-vl-32b-thinking`
+3. Restart the stack: `./run.sh restart`
+
+### Adding New Models
+
+To add a new model, edit `docker/models.env` and add a new configuration block:
+
+```bash
+# Model: your-model-name (model-key)
+MODEL_KEY_MODEL=huggingface/model-name
+MODEL_KEY_GPU_MEMORY_UTILIZATION=0.95
+MODEL_KEY_MAX_MODEL_LEN=100000
+MODEL_KEY_EXTRA_ARGS=
+```
+
+Then set `MODEL_NAME=model-key` to use the new model.
+
+### Docker Compose Configuration
+
 The stack uses the following configuration in `docker-compose.yml`:
 
 ```yaml
 services:
   vllm:
     - GPU configuration
-    - Model settings
-    - Memory utilization
+    - Model settings (from environment variables)
+    - Memory utilization (from environment variables)
   webui:
     - Network settings
     - API configuration
@@ -82,35 +130,46 @@ services:
 
 ## Common Operations
 
+### Switching Models
+
+```bash
+# Edit models.env and change MODEL_NAME
+nano docker/models.env
+
+# Restart the stack
+cd docker
+./run.sh restart
+```
+
 ### View Logs
 ```bash
 # All services
-docker compose logs
+./run.sh logs
 
 # Specific service
-docker compose logs vllm
-docker compose logs webui
+./run.sh logs vllm
+./run.sh logs webui
 ```
 
 ### Restart Services
 ```bash
 # Restart all
-docker compose restart
+./run.sh restart
 
 # Restart specific service
-docker compose restart vllm
-docker compose restart webui
+./run.sh restart vllm
+./run.sh restart webui
 ```
 
 ### Stop Stack
 ```bash
-docker compose down
+./run.sh down
 ```
 
 ### Update Images
 ```bash
-docker compose pull
-docker compose up -d
+./run.sh pull
+./run.sh up -d
 ```
 
 ## Troubleshooting

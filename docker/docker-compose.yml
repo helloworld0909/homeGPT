@@ -4,9 +4,10 @@ services:
     image: vllm/vllm-openai:v0.11.0-x86_64
     restart: unless-stopped
     command: >
-      --model QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ
-      --gpu-memory-utilization 0.95
-      --max-model-len 100000
+      --model ${VLLM_MODEL}
+      --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION}
+      --max-model-len ${VLLM_MAX_MODEL_LEN}
+      ${VLLM_EXTRA_ARGS}
     ports:
       - "8000:8000"
     deploy:
