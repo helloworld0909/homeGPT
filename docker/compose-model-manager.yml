@@ -1,0 +1,15 @@
+services:
+  model-manager:
+    build:
+      context: ../model-manager
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - ../model-manager/config.yaml:/app/config.yaml:ro
+    environment:
+      - CONFIG_PATH=/app/config.yaml
+      - PORT=9000
+    networks:
+      - homegpt-network

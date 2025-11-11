@@ -1,0 +1,27 @@
+services:
+  vllm-qwen3-vl-30b-a3b:
+    image: vllm/vllm-openai:v0.11.0-x86_64
+    container_name: vllm-qwen3-vl-30b-a3b
+    restart: unless-stopped
+    command: >
+      --model QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ
+      --gpu-memory-utilization 0.93
+      --max-model-len 100000
+      --enable-sleep-mode
+    ports:
+      - "8001:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - VLLM_SERVER_DEV_MODE=1
+    ipc: host
+    networks:
+      - homegpt-network

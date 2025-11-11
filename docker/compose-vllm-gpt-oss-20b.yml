@@ -1,0 +1,26 @@
+services:
+  vllm-gpt-oss-20b:
+    image: vllm/vllm-openai:v0.11.0-x86_64
+    container_name: vllm-gpt-oss-20b
+    restart: unless-stopped
+    command: >
+      --model unsloth/gpt-oss-20b
+      --gpu-memory-utilization 0.85
+      --enable-sleep-mode
+    ports:
+      - "8002:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - VLLM_SERVER_DEV_MODE=1
+    ipc: host
+    networks:
+      - homegpt-network

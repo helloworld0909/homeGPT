@@ -1,0 +1,29 @@
+services:
+  webui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      # Multiple OpenAI-compatible endpoints
+      - OPENAI_API_BASE_URLS=http://vllm-qwen3-vl-30b-a3b:8000/v1;http://vllm-gpt-oss-20b:8000/v1
+      - OPENAI_API_KEYS=dummy;dummy
+      # Model Manager for hot-swapping
+      - MODEL_MANAGER_URL=http://model-manager:9000
+      # Enable model filtering
+      - ENABLE_MODEL_FILTER=true
+      # WebUI configuration
+      - WEBUI_NAME=homeGPT
+      - DEFAULT_USER_ROLE=admin
+    depends_on:
+      - vllm-qwen3-vl-30b-a3b
+      - vllm-gpt-oss-20b
+      - model-manager
+    networks:
+      - homegpt-network
+
+volumes:
+  open-webui:
+    name: open-webui
