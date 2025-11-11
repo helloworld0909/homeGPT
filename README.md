@@ -332,7 +332,7 @@ curl http://localhost:8002/is_sleeping
 ```bash
 # Pre-download models
 huggingface-cli download QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ
-huggingface-cli download unsloth/gpt-oss-20b
+huggingface-cli download openai/gpt-oss-20b
 
 # Or set HF_TOKEN in .env file and let vLLM download on first run
 ```

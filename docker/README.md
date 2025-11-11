@@ -139,7 +139,7 @@ docker compose stop model-manager
 **Purpose:** vLLM instance running GPT-OSS-20B model
 
 **Configuration:** Same as Qwen but:
-- Model: `unsloth/gpt-oss-20b`
+- Model: `openai/gpt-oss-20b`
 - Port: 8002
 - Container name: `vllm-gptoss`
 
