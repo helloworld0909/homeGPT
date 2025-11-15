@@ -11,7 +11,7 @@ echo ""
 # Function to wait for vLLM health endpoint
 wait_for_health() {
     local container=$1
-    local max_attempts=90  # 90 * 5s = 7.5 minutes max
+    local max_attempts=180  # 180 * 5s = 15 minutes max
     local attempt=0
     
     # Get the host port for this container
