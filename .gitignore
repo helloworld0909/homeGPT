@@ -1,0 +1,23 @@
+# Logs
+logs/
+*.log
+
+# Cache
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

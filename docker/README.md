@@ -7,10 +7,10 @@ This directory contains modularized Docker Compose files for the homeGPT stack. 
 ```
 docker-compose.yml (Main orchestrator)
     │
-    ├─── compose-model-manager.yml  → Model Manager (Go service)
-    ├─── compose-vllm-qwen.yml      → vLLM Instance 1 (Qwen)
-    ├─── compose-vllm-gptoss.yml    → vLLM Instance 2 (GPT-OSS)
-    └─── compose-webui.yml          → Open WebUI
+    ├─── compose-model-manager.yml           → Model Manager (Go service)
+    ├─── compose-vllm-qwen3-vl-30b-a3b.yml   → vLLM Instance 1 (Qwen)
+    ├─── compose-vllm-gpt-oss-20b.yml        → vLLM Instance 2 (GPT-OSS)
+    └─── compose-webui.yml                   → Open WebUI
 
 All services connect via: homegpt-network (bridge network)
 ```
@@ -19,12 +19,12 @@ All services connect via: homegpt-network (bridge network)
 
 ```
 docker/
-├── docker-compose.yml              # Main file - includes all modules
-├── compose-model-manager.yml       # Go service (port 9000)
-├── compose-vllm-qwen.yml          # vLLM Qwen instance (port 8001)
-├── compose-vllm-gptoss.yml        # vLLM GPT-OSS instance (port 8002)
-├── compose-webui.yml              # Open WebUI (port 3000)
-└── README.md                      # This file
+├── docker-compose.yml                          # Main file - includes all modules
+├── compose-model-manager.yml                   # Go service (port 9000)
+├── compose-vllm-qwen3-vl-30b-a3b.yml          # vLLM Qwen instance (port 8001)
+├── compose-vllm-gpt-oss-20b.yml               # vLLM GPT-OSS instance (port 8002)
+├── compose-webui.yml                          # Open WebUI (port 3000)
+└── README.md                                  # This file
 ```
 
 ## Usage Patterns
@@ -44,21 +44,35 @@ This uses `docker-compose.yml` which includes all module files via the `include`
 docker compose -f compose-model-manager.yml up
 ```
 
-**Only vLLM instances:**
+**Test Single vLLM Server - Qwen Only (requires 2 GPUs):**
 ```bash
-docker compose -f compose-vllm-qwen.yml -f compose-vllm-gptoss.yml up
+docker compose -f compose-vllm-qwen3-vl-30b-a3b.yml up -d
+# Access at http://localhost:8001
+# Check health: curl http://localhost:8001/health
 ```
 
-**Model Manager + One vLLM instance:**
+**Test Single vLLM Server - GPT-OSS Only (requires 2 GPUs):**
 ```bash
-docker compose -f compose-model-manager.yml -f compose-vllm-qwen.yml up
+docker compose -f compose-vllm-gpt-oss-20b.yml up -d
+# Access at http://localhost:8002
+# Check health: curl http://localhost:8002/health
+```
+
+**Both vLLM instances (requires 4 GPUs total):**
+```bash
+docker compose -f compose-vllm-qwen3-vl-30b-a3b.yml -f compose-vllm-gpt-oss-20b.yml up -d
+```
+
+**Model Manager + Single vLLM instance:**
+```bash
+docker compose -f compose-model-manager.yml -f compose-vllm-qwen3-vl-30b-a3b.yml up
 ```
 
 **Custom combination:**
 ```bash
 docker compose \
   -f compose-model-manager.yml \
-  -f compose-vllm-qwen.yml \
+  -f compose-vllm-qwen3-vl-30b-a3b.yml \
   -f compose-webui.yml \
   up -d
 ```
@@ -118,30 +132,38 @@ docker compose stop model-manager
 
 **Network:** Connects to `homegpt-network`
 
-### compose-vllm-qwen.yml
+### compose-vllm-qwen3-vl-30b-a3b.yml
 **Purpose:** vLLM instance running Qwen3-VL-30B model
 
 **Key Features:**
 - Image: `vllm/vllm-openai:v0.11.0-x86_64`
-- GPU: Requires 1 NVIDIA GPU
+- GPU: Requires 2 NVIDIA GPUs (tensor parallelism)
 - Port: 8001 (maps to container port 8000)
 - Sleep mode: Enabled via `--enable-sleep-mode`
-- Memory: 95% GPU utilization, 100k max tokens
+- Model: Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
+- Memory: 90% GPU utilization, 128k max tokens
+- Tool calling: Auto tool choice enabled (hermes parser)
 
 **Environment:**
 - `VLLM_SERVER_DEV_MODE=1` - Enables sleep endpoints
 - `HUGGING_FACE_HUB_TOKEN` - For model downloads
+- `CUDA_VISIBLE_DEVICES=0,1` - Use GPUs 0 and 1
+- `VLLM_HOST_IP=127.0.0.1` - Host binding
 
 **Volumes:**
 - `~/.cache/huggingface` - Model cache (shared across instances)
 
-### compose-vllm-gptoss.yml
+### compose-vllm-gpt-oss-20b.yml
 **Purpose:** vLLM instance running GPT-OSS-20B model
 
-**Configuration:** Same as Qwen but:
+**Configuration:** 
 - Model: `openai/gpt-oss-20b`
+- GPU: Requires 2 NVIDIA GPUs (tensor parallelism)
 - Port: 8002
 - Container name: `vllm-gptoss`
+- Memory: 80% GPU utilization, 128k max tokens
+- Tool calling: Auto tool choice enabled (openai parser)
+- Max batched tokens: 30k
 
 ### compose-webui.yml
 **Purpose:** Open WebUI interface for chat
@@ -173,8 +195,9 @@ services:
     restart: unless-stopped
     command: >
       --model org/model-name
-      --gpu-memory-utilization 0.95
-      --max-model-len 100000
+      --gpu-memory-utilization 0.85
+      --max-model-len 128k
+      --tensor-parallel-size 2
       --enable-sleep-mode
     ports:
       - "8003:8000"  # Use next available port (8003, 8004, etc.)
@@ -183,13 +206,15 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: 2
               capabilities: [gpu]
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
       - VLLM_SERVER_DEV_MODE=1
+      - CUDA_VISIBLE_DEVICES=0,1
+      - VLLM_HOST_IP=127.0.0.1
     ipc: host
     networks:
       - homegpt-network
@@ -202,8 +227,8 @@ Edit `docker-compose.yml`:
 ```yaml
 include:
   - compose-model-manager.yml
-  - compose-vllm-qwen.yml
-  - compose-vllm-gptoss.yml
+  - compose-vllm-qwen3-vl-30b-a3b.yml
+  - compose-vllm-gpt-oss-20b.yml
   - compose-vllm-newmodel.yml  # ← Add this line
   - compose-webui.yml
 ```
@@ -396,11 +421,14 @@ Override vLLM parameters:
 services:
   vllm-qwen:
     command: >
-      --model QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ
-      --gpu-memory-utilization 0.85
-      --max-model-len 50000
-      --enable-sleep-mode
+      --model Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
+      --gpu-memory-utilization 0.90
+      --max-model-len 128k
+      --max-num-batched-tokens 30k
       --tensor-parallel-size 2
+      --enable-sleep-mode
+      --enable-auto-tool-choice
+      --tool-call-parser hermes
 ```
 
 ### Health Checks
