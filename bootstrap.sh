@@ -53,7 +53,7 @@ echo ""
 
 # Clean up
 echo "Cleaning up existing containers..."
-docker compose -f "$COMPOSE_FILE" down
+docker compose -f "$COMPOSE_FILE" down --remove-orphans
 
 # Check if there are any sleep models
 if [ -z "$SLEEP_CONTAINERS" ]; then

@@ -17,10 +17,6 @@ services:
       # WebUI configuration
       - WEBUI_NAME=homeGPT
       - DEFAULT_USER_ROLE=admin
-    depends_on:
-      - vllm-qwen3-vl-30b-a3b
-      - vllm-gpt-oss-20b
-      - model-manager
     networks:
       - homegpt-network
 

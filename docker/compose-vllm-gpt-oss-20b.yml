@@ -1,13 +1,13 @@
 services:
   vllm-gpt-oss-20b:
-    image: vllm/vllm-openai:v0.11.0-x86_64
+    image: vllm/vllm-openai:nightly-x86_64
     container_name: vllm-gpt-oss-20b
     restart: unless-stopped
     command: >
-      --model openai/gpt-oss-20b
+      openai/gpt-oss-20b
       --gpu-memory-utilization 0.80
-      --max-model-len 128k
-      --max-num-batched-tokens 30k
+      --max-model-len 131072
+      --max-num-batched-tokens 49152
       --tensor-parallel-size 2
       --enable-chunked-prefill
       --enable-sleep-mode
@@ -26,6 +26,9 @@ services:
       - ~/.cache/huggingface:/root/.cache/huggingface
       - ../vllm-logging.json:/logs/logging.json:ro
       - ../logs/gpt-oss-20b:/logs
+      - ~/.cache/vllm:/root/.cache/vllm             # Persist vllm cache
+      - ~/.cache/triton:/root/.triton/cache         # Persist Triton kernels
+      - ~/.cache/flashinfer:/root/.cache/flashinfer # Persist FlashInfer kernels
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
       - VLLM_SERVER_DEV_MODE=1
