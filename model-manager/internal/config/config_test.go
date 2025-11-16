@@ -13,19 +13,16 @@ models:
     name: "Model A"
     container_name: "vllm-a"
     port: 8000
-    default: true
+    host_port: 8001
+    startup_mode: active
     gpu_memory_gb: 16.0
   - id: model-b
     name: "Model B"
     container_name: "vllm-b"
-    port: 8001
-    default: false
+    port: 8000
+    host_port: 8002
+    startup_mode: sleep
     gpu_memory_gb: 24.0
-
-switching:
-  health_check_interval_seconds: 2
-  max_retries: 5
-  available_ram_gb: 64.0
 `
 
 	tmpDir := t.TempDir()
@@ -48,12 +45,16 @@ switching:
 		t.Errorf("expected first model id 'model-a', got '%s'", cfg.Models[0].ID)
 	}
 
-	if !cfg.Models[0].Default {
-		t.Error("expected first model to be default")
+	if cfg.Models[0].StartupMode != "active" {
+		t.Error("expected first model to have startup_mode='active'")
 	}
 
-	if cfg.Switching.MaxRetries != 5 {
-		t.Errorf("expected max_retries 5, got %d", cfg.Switching.MaxRetries)
+	if cfg.Models[0].HostPort != 8001 {
+		t.Errorf("expected first model host_port 8001, got %d", cfg.Models[0].HostPort)
+	}
+
+	if cfg.Models[0].StartupMode != "active" {
+		t.Errorf("expected first model startup_mode 'active', got '%s'", cfg.Models[0].StartupMode)
 	}
 }
 
@@ -89,10 +90,6 @@ models:
 func TestLoad_NoModels(t *testing.T) {
 	content := `
 models: []
-switching:
-  health_check_interval_seconds: 2
-  max_retries: 5
-  available_ram_gb: 64.0
 `
 
 	tmpDir := t.TempDir()
@@ -120,12 +117,14 @@ models:
     name: "Model A"
     container_name: "vllm-a"
     port: 8000
-    default: false
+    host_port: 8001
+    startup_mode: sleep
   - id: model-b
     name: "Model B"
     container_name: "vllm-b"
-    port: 8001
-    default: false
+    port: 8000
+    host_port: 8002
+    startup_mode: sleep
 `
 
 	tmpDir := t.TempDir()
@@ -138,10 +137,10 @@ models:
 	_, err := Load(configPath)
 
 	if err == nil {
-		t.Fatal("expected error when no model is default")
+		t.Fatal("expected error when no model has startup_mode='active'")
 	}
 
-	if err.Error() != "exactly one model must be set as default, found 0" {
+	if err.Error() != "exactly one model must have startup_mode='active', found 0" {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -153,12 +152,14 @@ models:
     name: "Model A"
     container_name: "vllm-a"
     port: 8000
-    default: true
+    host_port: 8001
+    startup_mode: active
   - id: model-b
     name: "Model B"
     container_name: "vllm-b"
-    port: 8001
-    default: true
+    port: 8000
+    host_port: 8002
+    startup_mode: active
 `
 
 	tmpDir := t.TempDir()
@@ -171,10 +172,10 @@ models:
 	_, err := Load(configPath)
 
 	if err == nil {
-		t.Fatal("expected error when multiple models are default")
+		t.Fatal("expected error when multiple models have startup_mode='active'")
 	}
 
-	if err.Error() != "exactly one model must be set as default, found 2" {
+	if err.Error() != "exactly one model must have startup_mode='active', found 2" {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -185,7 +186,8 @@ models:
   - id: model-a
     container_name: "vllm-a"
     port: 8000
-    default: true
+    host_port: 8001
+    startup_mode: active
 `
 
 	tmpDir := t.TempDir()
@@ -202,5 +204,62 @@ models:
 
 	if len(cfg.Models) != 1 {
 		t.Errorf("expected 1 model, got %d", len(cfg.Models))
+	}
+
+	if cfg.Models[0].StartupMode != "active" {
+		t.Errorf("expected startup_mode 'active', got '%s'", cfg.Models[0].StartupMode)
+	}
+}
+
+func TestLoad_MissingStartupMode(t *testing.T) {
+	content := `
+models:
+  - id: model-a
+    container_name: "vllm-a"
+    port: 8000
+`
+
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	_, err := Load(configPath)
+	if err == nil {
+		t.Fatal("expected error when startup_mode is missing")
+	}
+}
+
+func TestLoad_StartupModeDisabled(t *testing.T) {
+	content := `
+models:
+  - id: model-a
+    container_name: "vllm-a"
+    port: 8000
+    host_port: 8001
+    startup_mode: active
+  - id: model-b
+    container_name: "vllm-b"
+    port: 8000
+    host_port: 8002
+    startup_mode: disabled
+`
+
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if cfg.Models[1].StartupMode != "disabled" {
+		t.Errorf("expected startup_mode 'disabled' for model-b, got '%s'", cfg.Models[1].StartupMode)
 	}
 }

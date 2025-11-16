@@ -235,7 +235,7 @@ include:
 
 ### Step 3: Update Model Manager Config
 
-Edit `../model-manager/config.yaml`:
+Edit `../config.yaml`:
 
 ```yaml
 models:

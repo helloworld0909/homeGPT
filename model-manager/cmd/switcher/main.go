@@ -14,7 +14,7 @@ func main() {
 	// Load configuration
 	configPath := os.Getenv("CONFIG_PATH")
 	if configPath == "" {
-		configPath = "./config.yaml"
+		configPath = "/app/config.yaml"
 	}
 
 	cfg, err := config.Load(configPath)

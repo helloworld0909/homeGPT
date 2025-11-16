@@ -1,0 +1,30 @@
+# Model Manager Configuration
+
+# Model configurations
+models:
+  - id: qwen3-vl-30b-a3b
+    name: "Qwen 3 VL 30B A3B (MoE AWQ)"
+    container_name: "vllm-qwen3-vl-30b-a3b"
+    port: 8000  # Internal container port
+    host_port: 8001  # External host-mapped port
+    gpu_memory_gb: 54.0
+    startup_mode: active  # Options: disabled | sleep | active
+
+  - id: gpt-oss-20b
+    name: "GPT-OSS 20B"
+    container_name: "vllm-gpt-oss-20b"
+    port: 8000  # Internal container port
+    host_port: 8002  # External host-mapped port
+    gpu_memory_gb: 36.0
+    startup_mode: sleep  # Options: disabled | sleep | active
+
+# Startup mode descriptions:
+# - disabled: Container not started at all
+# - sleep: Container started, model loaded, immediately put to sleep mode  
+# - active: Container started, model loaded, sleep mode enabled, then woken up (ready to serve)
+#
+# Notes:
+# - Only ONE model can have startup_mode='active' (this becomes the initially active model)
+# - Health check interval: 2 seconds (hardcoded)
+# - Max retries: 450 (15 minutes max startup time)
+# - Available RAM: Auto-detected from /proc/meminfo at runtime

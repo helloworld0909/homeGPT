@@ -14,6 +14,16 @@ const (
 	StatusSleeping  ModelStatus = "sleeping"
 	StatusSwitching ModelStatus = "switching"
 	StatusError     ModelStatus = "error"
+	StatusDisabled  ModelStatus = "disabled"
+)
+
+// StartupMode determines how a model should be initialized
+type StartupMode string
+
+const (
+	StartupDisabled StartupMode = "disabled" // Don't start the container
+	StartupSleep    StartupMode = "sleep"    // Start and load model, keep in sleep mode
+	StartupActive   StartupMode = "active"   // Start, load, and wake up (ready to serve)
 )
 
 // Model represents a vLLM model configuration and state
@@ -21,12 +31,13 @@ type Model struct {
 	mu sync.Mutex // Protects mutable fields (status, lastActive)
 
 	// Immutable config fields (set once, read-only after init)
-	ID            string  `json:"id" yaml:"id"`
-	Name          string  `json:"name" yaml:"name"`
-	ContainerName string  `json:"container_name" yaml:"container_name"`
-	Port          int     `json:"port" yaml:"port"`
-	Default       bool    `json:"default" yaml:"default"`
-	GPUMemoryGB   float64 `json:"gpu_memory_gb" yaml:"gpu_memory_gb"`
+	ID            string      `json:"id" yaml:"id"`
+	Name          string      `json:"name" yaml:"name"`
+	ContainerName string      `json:"container_name" yaml:"container_name"`
+	Port          int         `json:"port" yaml:"port"`
+	HostPort      int         `json:"host_port" yaml:"host_port"`
+	GPUMemoryGB   float64     `json:"gpu_memory_gb" yaml:"gpu_memory_gb"`
+	StartupMode   StartupMode `json:"startup_mode" yaml:"startup_mode"`
 
 	// Mutable state fields (protected by mu)
 	status     ModelStatus
@@ -100,6 +111,13 @@ func (m *Model) MarkError() {
 	m.status = StatusError
 }
 
+// MarkDisabled sets status to disabled (thread-safe)
+func (m *Model) MarkDisabled() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.status = StatusDisabled
+}
+
 // Snapshot returns a copy of the model with current state (thread-safe)
 func (m *Model) Snapshot() Model {
 	m.mu.Lock()
@@ -116,8 +134,9 @@ func (m *Model) Snapshot() Model {
 		Name:          m.Name,
 		ContainerName: m.ContainerName,
 		Port:          m.Port,
-		Default:       m.Default,
+		HostPort:      m.HostPort,
 		GPUMemoryGB:   m.GPUMemoryGB,
+		StartupMode:   m.StartupMode,
 		status:        m.status,
 		lastActive:    lastActiveCopy,
 		// mu is intentionally NOT copied - each snapshot gets zero value
@@ -133,8 +152,9 @@ func (m *Model) MarshalJSON() ([]byte, error) {
 		Name          string      `json:"name"`
 		ContainerName string      `json:"container_name"`
 		Port          int         `json:"port"`
-		Default       bool        `json:"default"`
+		HostPort      int         `json:"host_port"`
 		GPUMemoryGB   float64     `json:"gpu_memory_gb"`
+		StartupMode   StartupMode `json:"startup_mode"`
 		Status        ModelStatus `json:"status"`
 		LastActive    *time.Time  `json:"last_active,omitempty"`
 	}
@@ -144,8 +164,9 @@ func (m *Model) MarshalJSON() ([]byte, error) {
 		Name:          snapshot.Name,
 		ContainerName: snapshot.ContainerName,
 		Port:          snapshot.Port,
-		Default:       snapshot.Default,
+		HostPort:      snapshot.HostPort,
 		GPUMemoryGB:   snapshot.GPUMemoryGB,
+		StartupMode:   snapshot.StartupMode,
 		Status:        snapshot.status,
 		LastActive:    snapshot.lastActive,
 	}
@@ -155,15 +176,7 @@ func (m *Model) MarshalJSON() ([]byte, error) {
 
 // Config represents the application configuration
 type Config struct {
-	Models    []Model         `yaml:"models"`
-	Switching SwitchingConfig `yaml:"switching"`
-}
-
-// SwitchingConfig contains switching behavior settings
-type SwitchingConfig struct {
-	HealthCheckIntervalSeconds int     `yaml:"health_check_interval_seconds"`
-	MaxRetries                 int     `yaml:"max_retries"`
-	AvailableRAMGB             float64 `yaml:"available_ram_gb"`
+	Models []Model `yaml:"models"`
 }
 
 // SwitchRequest is the request body for switching models

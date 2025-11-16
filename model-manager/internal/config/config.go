@@ -25,14 +25,18 @@ func Load(path string) (*models.Config, error) {
 		return nil, fmt.Errorf("no models defined in config")
 	}
 
-	defaultCount := 0
+	activeCount := 0
 	for i := range cfg.Models {
-		if cfg.Models[i].Default {
-			defaultCount++
+		if cfg.Models[i].StartupMode == "" {
+			return nil, fmt.Errorf("model %s: startup_mode must be specified (disabled, sleep, or active)", cfg.Models[i].ID)
+		}
+		if cfg.Models[i].StartupMode == models.StartupActive {
+			activeCount++
 		}
 	}
-	if defaultCount != 1 {
-		return nil, fmt.Errorf("exactly one model must be set as default, found %d", defaultCount)
+
+	if activeCount != 1 {
+		return nil, fmt.Errorf("exactly one model must have startup_mode='active', found %d", activeCount)
 	}
 
 	return &cfg, nil

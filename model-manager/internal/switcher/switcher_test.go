@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/zheng/homeGPT/internal/system"
 	"github.com/zheng/homeGPT/internal/vllm"
 	"github.com/zheng/homeGPT/pkg/models"
 )
@@ -16,26 +18,23 @@ func TestNew(t *testing.T) {
 				ID:            "model-a",
 				ContainerName: "vllm-a",
 				Port:          8000,
-				Default:       true,
+				HostPort:      8001,
+				StartupMode:   models.StartupActive,
 				GPUMemoryGB:   16.0,
 			},
 			{
 				ID:            "model-b",
 				ContainerName: "vllm-b",
-				Port:          8001,
-				Default:       false,
+				Port:          8000,
+				HostPort:      8002,
+				StartupMode:   models.StartupSleep,
 				GPUMemoryGB:   24.0,
 			},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 2,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
 		},
 	}
 
 	mockClient := vllm.NewMockClient()
-	s := NewWithClient(cfg, mockClient)
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
 
 	if s == nil {
 		t.Fatal("expected non-nil switcher")
@@ -67,21 +66,18 @@ func TestGetModels(t *testing.T) {
 				ID:            "model-a",
 				ContainerName: "vllm-a",
 				Port:          8000,
-				Default:       true,
+				HostPort:      8001,
+				StartupMode:   models.StartupActive,
 				GPUMemoryGB:   16.0,
 			},
 			{
 				ID:            "model-b",
 				ContainerName: "vllm-b",
-				Port:          8001,
-				Default:       false,
+				Port:          8000,
+				HostPort:      8002,
+				StartupMode:   models.StartupSleep,
 				GPUMemoryGB:   24.0,
 			},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 2,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
 		},
 	}
 
@@ -95,7 +91,7 @@ func TestGetModels(t *testing.T) {
 		return false, nil // model-a is awake
 	}
 
-	s := NewWithClient(cfg, mockClient)
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
 
 	// Wait for initial resync to complete
 	s.WaitForInit()
@@ -118,21 +114,18 @@ func TestSwitchModel_Success(t *testing.T) {
 				ID:            "model-a",
 				ContainerName: "vllm-a",
 				Port:          8000,
-				Default:       true,
+				HostPort:      8001,
+				StartupMode:   models.StartupActive,
 				GPUMemoryGB:   16.0,
 			},
 			{
 				ID:            "model-b",
 				ContainerName: "vllm-b",
-				Port:          8001,
-				Default:       false,
+				Port:          8000,
+				HostPort:      8002,
+				StartupMode:   models.StartupSleep,
 				GPUMemoryGB:   24.0,
 			},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 1,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
 		},
 	}
 
@@ -145,7 +138,7 @@ func TestSwitchModel_Success(t *testing.T) {
 	// Model-b starts sleeping, model-a awake
 	// After Sleep() is called on a model, it becomes sleeping
 	mockClient.IsSleepingFunc = func(ctx context.Context, host string, port int) (bool, error) {
-		if host == "vllm-b" && port == 8001 {
+		if host == "vllm-b" && port == 8000 {
 			return true, nil // model-b starts sleeping
 		}
 		for _, call := range mockClient.SleepCalls {
@@ -156,7 +149,7 @@ func TestSwitchModel_Success(t *testing.T) {
 		return false, nil
 	}
 
-	s := NewWithClient(cfg, mockClient)
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
 	s.WaitForInit()
 
 	ctx := context.Background()
@@ -181,8 +174,8 @@ func TestSwitchModel_Success(t *testing.T) {
 		t.Errorf("expected 1 wake_up call, got %d", len(mockClient.WakeUpCalls))
 	} else {
 		call := mockClient.WakeUpCalls[0]
-		if call.Host != "vllm-b" || call.Port != 8001 {
-			t.Errorf("expected wake_up on vllm-b:8001, got %s:%d", call.Host, call.Port)
+		if call.Host != "vllm-b" || call.Port != 8000 {
+			t.Errorf("expected wake_up on vllm-b:8000, got %s:%d", call.Host, call.Port)
 		}
 	}
 
@@ -203,17 +196,12 @@ func TestSwitchModel_Success(t *testing.T) {
 func TestSwitchModel_AlreadyActive(t *testing.T) {
 	cfg := &models.Config{
 		Models: []models.Model{
-			{ID: "model-a", Default: true, ContainerName: "vllm-a", Port: 8000},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 1,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
+			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, HostPort: 8001, StartupMode: models.StartupActive},
 		},
 	}
 
 	mockClient := vllm.NewMockClient()
-	s := NewWithClient(cfg, mockClient)
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
 	s.WaitForInit()
 
 	ctx := context.Background()
@@ -235,17 +223,12 @@ func TestSwitchModel_AlreadyActive(t *testing.T) {
 func TestSwitchModel_ModelNotFound(t *testing.T) {
 	cfg := &models.Config{
 		Models: []models.Model{
-			{ID: "model-a", Default: true},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 1,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
+			{ID: "model-a", StartupMode: models.StartupActive},
 		},
 	}
 
 	mockClient := vllm.NewMockClient()
-	s := NewWithClient(cfg, mockClient)
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
 	s.WaitForInit()
 
 	ctx := context.Background()
@@ -263,13 +246,8 @@ func TestSwitchModel_ModelNotFound(t *testing.T) {
 func TestSwitchModel_SleepFails(t *testing.T) {
 	cfg := &models.Config{
 		Models: []models.Model{
-			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, Default: true},
-			{ID: "model-b", ContainerName: "vllm-b", Port: 8001, Default: false},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 1,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
+			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, HostPort: 8001, StartupMode: models.StartupActive, GPUMemoryGB: 16.0},
+			{ID: "model-b", ContainerName: "vllm-b", Port: 8000, HostPort: 8002, StartupMode: models.StartupSleep, GPUMemoryGB: 24.0},
 		},
 	}
 
@@ -279,13 +257,13 @@ func TestSwitchModel_SleepFails(t *testing.T) {
 	}
 	// Ensure model-a is active, model-b sleeping
 	mockClient.IsSleepingFunc = func(ctx context.Context, host string, port int) (bool, error) {
-		if host == "vllm-b" && port == 8001 {
+		if host == "vllm-b" && port == 8000 {
 			return true, nil
 		}
 		return false, nil
 	}
 
-	s := NewWithClient(cfg, mockClient)
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
 	s.WaitForInit()
 
 	ctx := context.Background()
@@ -304,13 +282,8 @@ func TestSwitchModel_SleepFails(t *testing.T) {
 func TestSwitchModel_WakeUpFails(t *testing.T) {
 	cfg := &models.Config{
 		Models: []models.Model{
-			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, Default: true, GPUMemoryGB: 16.0},
-			{ID: "model-b", ContainerName: "vllm-b", Port: 8001, Default: false, GPUMemoryGB: 24.0},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 1,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
+			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, HostPort: 8001, StartupMode: models.StartupActive, GPUMemoryGB: 16.0},
+			{ID: "model-b", ContainerName: "vllm-b", Port: 8000, HostPort: 8002, StartupMode: models.StartupSleep, GPUMemoryGB: 24.0},
 		},
 	}
 
@@ -320,7 +293,7 @@ func TestSwitchModel_WakeUpFails(t *testing.T) {
 	}
 	// Ensure model-a is active, model-b sleeping
 	mockClient.IsSleepingFunc = func(ctx context.Context, host string, port int) (bool, error) {
-		if host == "vllm-b" && port == 8001 {
+		if host == "vllm-b" && port == 8000 {
 			return true, nil
 		}
 		for _, call := range mockClient.SleepCalls {
@@ -331,7 +304,7 @@ func TestSwitchModel_WakeUpFails(t *testing.T) {
 		return false, nil
 	}
 
-	s := NewWithClient(cfg, mockClient)
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
 	s.WaitForInit()
 
 	ctx := context.Background()
@@ -350,13 +323,8 @@ func TestSwitchModel_WakeUpFails(t *testing.T) {
 func TestSwitchModel_HealthCheckFails(t *testing.T) {
 	cfg := &models.Config{
 		Models: []models.Model{
-			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, Default: true, GPUMemoryGB: 16.0},
-			{ID: "model-b", ContainerName: "vllm-b", Port: 8001, Default: false, GPUMemoryGB: 24.0},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 1,
-			MaxRetries:                 2,
-			AvailableRAMGB:             64.0,
+			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, HostPort: 8001, StartupMode: models.StartupActive, GPUMemoryGB: 16.0},
+			{ID: "model-b", ContainerName: "vllm-b", Port: 8000, HostPort: 8002, StartupMode: models.StartupSleep, GPUMemoryGB: 24.0},
 		},
 	}
 
@@ -366,7 +334,7 @@ func TestSwitchModel_HealthCheckFails(t *testing.T) {
 	}
 	// Immediately confirm sleep to avoid retry delays
 	mockClient.IsSleepingFunc = func(ctx context.Context, host string, port int) (bool, error) {
-		if host == "vllm-b" && port == 8001 {
+		if host == "vllm-b" && port == 8000 {
 			return true, nil
 		}
 		for _, call := range mockClient.SleepCalls {
@@ -377,7 +345,7 @@ func TestSwitchModel_HealthCheckFails(t *testing.T) {
 		return false, nil
 	}
 
-	s := NewWithClient(cfg, mockClient)
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
 	s.WaitForInit()
 
 	ctx := context.Background()
@@ -424,15 +392,13 @@ func TestDetermineSleepLevel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &models.Config{
 				Models: []models.Model{
-					{ID: "model-a", Default: true, GPUMemoryGB: tt.gpuMemory},
-				},
-				Switching: models.SwitchingConfig{
-					AvailableRAMGB: tt.availableRAM,
+					{ID: "model-a", StartupMode: models.StartupActive, GPUMemoryGB: tt.gpuMemory},
 				},
 			}
 
 			mockClient := vllm.NewMockClient()
-			s := NewWithClient(cfg, mockClient)
+			mockRAM := &system.MockRAMFetcher{AvailableRAMGB: tt.availableRAM}
+			s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond), WithRAMFetcher(mockRAM))
 			s.WaitForInit()
 
 			level := s.determineSleepLevel(s.models["model-a"])
@@ -447,13 +413,8 @@ func TestDetermineSleepLevel(t *testing.T) {
 func TestResyncModels(t *testing.T) {
 	cfg := &models.Config{
 		Models: []models.Model{
-			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, Default: true},
-			{ID: "model-b", ContainerName: "vllm-b", Port: 8001, Default: false},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 1,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
+			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, HostPort: 8001, StartupMode: models.StartupActive},
+			{ID: "model-b", ContainerName: "vllm-b", Port: 8000, HostPort: 8002, StartupMode: models.StartupSleep},
 		},
 	}
 
@@ -467,7 +428,7 @@ func TestResyncModels(t *testing.T) {
 		return false, nil
 	}
 
-	s := NewWithClient(cfg, mockClient)
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
 
 	// Don't start background routines, call resync directly
 	ctx := context.Background()
@@ -494,13 +455,8 @@ func TestResyncModels(t *testing.T) {
 func TestResyncModels_WithErrors(t *testing.T) {
 	cfg := &models.Config{
 		Models: []models.Model{
-			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, Default: true},
-			{ID: "model-b", ContainerName: "vllm-b", Port: 8001, Default: false},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 1,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
+			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, HostPort: 8001, StartupMode: models.StartupActive},
+			{ID: "model-b", ContainerName: "vllm-b", Port: 8000, HostPort: 8002, StartupMode: models.StartupSleep},
 		},
 	}
 
@@ -514,7 +470,7 @@ func TestResyncModels_WithErrors(t *testing.T) {
 		return false, nil
 	}
 
-	s := NewWithClient(cfg, mockClient)
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
 
 	ctx := context.Background()
 	err := s.resyncModels(ctx)
@@ -536,5 +492,92 @@ func TestResyncModels_WithErrors(t *testing.T) {
 
 	if s.activeModel != "model-b" {
 		t.Errorf("expected active model 'model-b' after resync, got '%s'", s.activeModel)
+	}
+}
+
+func TestNew_WithDisabledModel(t *testing.T) {
+	cfg := &models.Config{
+		Models: []models.Model{
+			{
+				ID:            "model-a",
+				ContainerName: "vllm-a",
+				Port:          8000,
+				HostPort:      8001,
+				StartupMode:   models.StartupActive,
+				GPUMemoryGB:   16.0,
+			},
+			{
+				ID:            "model-b",
+				ContainerName: "vllm-b",
+				Port:          8000,
+				HostPort:      8002,
+				StartupMode:   models.StartupDisabled,
+				GPUMemoryGB:   24.0,
+			},
+		},
+	}
+
+	mockClient := vllm.NewMockClient()
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
+
+	// Check disabled model has correct status
+	if s.models["model-b"].GetStatus() != models.StatusDisabled {
+		t.Errorf("expected model-b to be disabled, got %s", s.models["model-b"].GetStatus())
+	}
+}
+
+func TestSwitchModel_DisabledModel(t *testing.T) {
+	cfg := &models.Config{
+		Models: []models.Model{
+			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, HostPort: 8001, StartupMode: models.StartupActive},
+			{ID: "model-b", ContainerName: "vllm-b", Port: 8000, HostPort: 8002, StartupMode: models.StartupDisabled},
+		},
+	}
+
+	mockClient := vllm.NewMockClient()
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
+	s.WaitForInit()
+
+	ctx := context.Background()
+	err := s.SwitchModel(ctx, "model-b")
+
+	if err == nil {
+		t.Fatal("expected error when switching to disabled model")
+	}
+
+	if err.Error() != "model model-b is disabled and cannot be activated" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestResyncModels_SkipsDisabled(t *testing.T) {
+	cfg := &models.Config{
+		Models: []models.Model{
+			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, HostPort: 8001, StartupMode: models.StartupActive},
+			{ID: "model-b", ContainerName: "vllm-b", Port: 8000, HostPort: 8002, StartupMode: models.StartupDisabled},
+		},
+	}
+
+	mockClient := vllm.NewMockClient()
+	mockClient.IsSleepingFunc = func(ctx context.Context, host string, port int) (bool, error) {
+		// This should not be called for disabled models
+		if host == "vllm-b" {
+			t.Error("IsSleeping should not be called for disabled model")
+		}
+		return false, nil
+	}
+
+	s := NewWithClient(cfg, mockClient, WithMaxRetries(2), WithHealthCheckInterval(10*time.Millisecond))
+
+	ctx := context.Background()
+	err := s.resyncModels(ctx)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Disabled model should remain disabled
+	if s.models["model-b"].GetStatus() != models.StatusDisabled {
+		t.Errorf("expected model-b to remain disabled, got %s", s.models["model-b"].GetStatus())
 	}
 }

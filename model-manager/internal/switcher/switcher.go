@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zheng/homeGPT/internal/system"
 	"github.com/zheng/homeGPT/internal/utils"
 	"github.com/zheng/homeGPT/internal/vllm"
 	"github.com/zheng/homeGPT/pkg/models"
@@ -14,37 +15,85 @@ import (
 
 // Switcher manages model switching operations
 type Switcher struct {
-	config      *models.Config
-	vllmClient  vllm.VLLMClient
-	models      map[string]*models.Model
-	activeModel string
-	mapMu       sync.RWMutex   // Protects models map and activeModel string only
-	switchLock  sync.Mutex     // Ensures only one switch operation at a time
-	initSync    sync.WaitGroup // Tracks initial resync completion
+	config              *models.Config
+	vllmClient          vllm.VLLMClient
+	ramFetcher          system.RAMFetcher
+	models              map[string]*models.Model
+	activeModel         string
+	healthCheckInterval time.Duration
+	maxRetries          int
+	mapMu               sync.RWMutex   // Protects models map and activeModel string only
+	switchLock          sync.Mutex     // Ensures only one switch operation at a time
+	initSync            sync.WaitGroup // Tracks initial resync completion
+}
+
+const (
+	defaultHealthCheckInterval = 2 * time.Second
+	defaultMaxRetries          = 450 // 15 minutes max startup time (450 * 2s = 900s)
+)
+
+// Option is a function that configures the Switcher
+type Option func(*Switcher)
+
+// WithHealthCheckInterval sets a custom health check interval
+func WithHealthCheckInterval(interval time.Duration) Option {
+	return func(s *Switcher) {
+		s.healthCheckInterval = interval
+	}
+}
+
+// WithMaxRetries sets a custom max retries count
+func WithMaxRetries(retries int) Option {
+	return func(s *Switcher) {
+		s.maxRetries = retries
+	}
+}
+
+// WithRAMFetcher sets a custom RAM fetcher for testing
+func WithRAMFetcher(fetcher system.RAMFetcher) Option {
+	return func(s *Switcher) {
+		s.ramFetcher = fetcher
+	}
 }
 
 // New creates a new model switcher
-func New(cfg *models.Config) *Switcher {
-	return NewWithClient(cfg, vllm.NewClient())
+func New(cfg *models.Config, opts ...Option) *Switcher {
+	return NewWithClient(cfg, vllm.NewClient(), opts...)
 }
 
 // NewWithClient creates a new model switcher with a custom vLLM client (for testing)
-func NewWithClient(cfg *models.Config, client vllm.VLLMClient) *Switcher {
+func NewWithClient(cfg *models.Config, client vllm.VLLMClient, opts ...Option) *Switcher {
 	s := &Switcher{
-		config:     cfg,
-		vllmClient: client,
-		models:     make(map[string]*models.Model),
+		config:              cfg,
+		vllmClient:          client,
+		ramFetcher:          system.NewRAMFetcher(),
+		models:              make(map[string]*models.Model),
+		healthCheckInterval: defaultHealthCheckInterval,
+		maxRetries:          defaultMaxRetries,
 	}
 
-	// Initialize models
+	// Apply options
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	// Initialize models based on startup_mode
 	for i := range cfg.Models {
 		model := &cfg.Models[i]
-		if model.Default {
+
+		switch model.StartupMode {
+		case models.StartupDisabled:
+			model.MarkDisabled()
+		case models.StartupSleep:
+			model.MarkSleeping()
+		case models.StartupActive:
 			model.MarkActive()
 			s.activeModel = model.ID
-		} else {
-			model.MarkSleeping()
+		default:
+			log.Fatalf("Invalid startup_mode '%s' for model %s. Must be 'disabled', 'sleep', or 'active'",
+				model.StartupMode, model.ID)
 		}
+
 		s.models[model.ID] = model
 	}
 
@@ -106,6 +155,11 @@ func (s *Switcher) resyncModels(ctx context.Context) error {
 	var anyErr error
 
 	for id, m := range modelsCopy {
+		// Skip disabled models
+		if m.StartupMode == models.StartupDisabled {
+			continue
+		}
+
 		// Query the vLLM server for sleep state
 		sleeping, err := s.vllmClient.IsSleeping(ctx, m.ContainerName, m.Port)
 		if err != nil {
@@ -167,12 +221,17 @@ func (s *Switcher) SwitchModel(ctx context.Context, targetModelID string) error 
 	defer s.switchLock.Unlock()
 
 	s.mapMu.RLock()
-	_, exists := s.models[targetModelID]
+	targetModel, exists := s.models[targetModelID]
 	currentActive := s.activeModel
 	s.mapMu.RUnlock()
 
 	if !exists {
 		return fmt.Errorf("model %s not found", targetModelID)
+	}
+
+	// Check if target model is disabled
+	if targetModel.StartupMode == models.StartupDisabled {
+		return fmt.Errorf("model %s is disabled and cannot be activated", targetModelID)
 	}
 
 	if targetModelID == currentActive {
@@ -265,8 +324,8 @@ func (s *Switcher) activateModel(ctx context.Context, modelID string) error {
 	}
 
 	// Wait for model to be healthy
-	maxRetries := s.config.Switching.MaxRetries
-	interval := time.Duration(s.config.Switching.HealthCheckIntervalSeconds) * time.Second
+	maxRetries := s.maxRetries
+	interval := s.healthCheckInterval
 
 	for i := 0; i < maxRetries; i++ {
 		log.Printf("Health check %d/%d for model %s", i+1, maxRetries, modelID)
@@ -287,11 +346,13 @@ func (s *Switcher) activateModel(ctx context.Context, modelID string) error {
 	return fmt.Errorf("model failed to become healthy after %d retries", maxRetries)
 }
 
-// determineSleepLevel decides whether to use level 1 or level 2 sleep
+// determineSleepLevel decides whether to use level 1 or level 2 sleep based on available system RAM
 func (s *Switcher) determineSleepLevel(model *models.Model) int {
+	availableRAMGB := s.ramFetcher.GetAvailableRAMGB()
+
 	// If available RAM is greater than model's GPU memory requirement, use level 1
 	// Otherwise, use level 2 to save RAM
-	if s.config.Switching.AvailableRAMGB >= model.GPUMemoryGB {
+	if availableRAMGB >= model.GPUMemoryGB {
 		return 1 // Level 1: offload to CPU RAM
 	}
 	return 2 // Level 2: discard weights

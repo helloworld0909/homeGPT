@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zheng/homeGPT/internal/switcher"
@@ -25,20 +26,15 @@ func setupTestHandler() (*Handler, *vllm.MockClient) {
 				Name:          "Model A",
 				ContainerName: "vllm-a",
 				Port:          8000,
-				Default:       true,
+				StartupMode:   models.StartupActive,
 			},
 			{
 				ID:            "model-b",
 				Name:          "Model B",
 				ContainerName: "vllm-b",
 				Port:          8001,
-				Default:       false,
+				StartupMode:   models.StartupSleep,
 			},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 1,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
 		},
 	}
 
@@ -260,22 +256,35 @@ func TestSwitchModel_SwitchFailure(t *testing.T) {
 
 	cfg := &models.Config{
 		Models: []models.Model{
-			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, Default: true},
-			{ID: "model-b", ContainerName: "vllm-b", Port: 8001, Default: false},
-		},
-		Switching: models.SwitchingConfig{
-			HealthCheckIntervalSeconds: 1,
-			MaxRetries:                 3,
-			AvailableRAMGB:             64.0,
+			{ID: "model-a", ContainerName: "vllm-a", Port: 8000, StartupMode: models.StartupActive},
+			{ID: "model-b", ContainerName: "vllm-b", Port: 8001, StartupMode: models.StartupSleep},
 		},
 	}
 
 	mockClient := vllm.NewMockClient()
-	mockClient.SleepFunc = func(ctx context.Context, host string, port int, level int) error {
-		return errors.New("sleep failed")
+	// Return correct sleeping states
+	mockClient.IsSleepingFunc = func(ctx context.Context, host string, port int) (bool, error) {
+		// model-b starts sleeping, model-a starts active
+		if host == "vllm-b" {
+			return true, nil
+		}
+		// After sleep is called on model-a, it becomes sleeping
+		for _, call := range mockClient.SleepCalls {
+			if call.Host == host && call.Port == port {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+	// Make wake_up fail for model-b
+	mockClient.WakeUpFunc = func(ctx context.Context, host string, port int) error {
+		if host == "vllm-b" {
+			return errors.New("wake up failed")
+		}
+		return nil
 	}
 
-	s := switcher.NewWithClient(cfg, mockClient)
+	s := switcher.NewWithClient(cfg, mockClient, switcher.WithMaxRetries(2), switcher.WithHealthCheckInterval(10*time.Millisecond))
 	s.WaitForInit()
 
 	h := New(s)
