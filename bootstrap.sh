@@ -55,44 +55,55 @@ echo ""
 echo "Cleaning up existing containers..."
 docker compose -f "$COMPOSE_FILE" down
 
-# Collect all containers that need to be started (active + sleep)
-ALL_CONTAINERS="$ACTIVE_CONTAINER $SLEEP_CONTAINERS"
-
-# Step 1: Load each model one at a time, then immediately sleep it
-echo ""
-echo "=== Phase 1: Loading and caching all models (one at a time) ==="
-step=1
-for container in $ALL_CONTAINERS; do
+# Check if there are any sleep models
+if [ -z "$SLEEP_CONTAINERS" ]; then
+    # No sleep models - just start the active model directly
     echo ""
-    echo "$step. Starting $container..."
-    docker compose -f "$COMPOSE_FILE" up -d "$container"
-    wait_for_health "$container"
-    
-    # Immediately put it to sleep to free VRAM for next model
-    host_port=$(docker compose -f "$COMPOSE_FILE" port "$container" 8000 2>/dev/null | cut -d: -f2 || echo "")
-    if [ -n "$host_port" ]; then
-        echo "   Putting $container to sleep to free VRAM..."
-        curl -s -X POST "http://localhost:$host_port/sleep" -H "Content-Type: application/json" -d '{"level": 1}' > /dev/null || echo "   (sleep command sent)"
-        sleep 3
-    fi
-    
-    step=$((step + 1))
-done
-
-# Step 2: Wake up only the active model
-echo ""
-echo "=== Phase 2: Activating default model ==="
-ACTIVE_PORT=$(docker compose -f "$COMPOSE_FILE" port "$ACTIVE_CONTAINER" 8000 2>/dev/null | cut -d: -f2 || echo "")
-if [ -n "$ACTIVE_PORT" ]; then
-    echo "   Waking up $ACTIVE_CONTAINER (port $ACTIVE_PORT)..."
-    curl -s -X POST "http://localhost:$ACTIVE_PORT/wake_up" > /dev/null || echo "   (wake_up command sent)"
-    sleep 3
+    echo "=== Starting active model (no sleep models to cache) ==="
+    echo "Starting $ACTIVE_CONTAINER..."
+    docker compose -f "$COMPOSE_FILE" up -d "$ACTIVE_CONTAINER"
     wait_for_health "$ACTIVE_CONTAINER"
+else
+    # Multiple models - load and cache all, then wake active
+    # Collect all containers that need to be started (active + sleep)
+    ALL_CONTAINERS="$ACTIVE_CONTAINER $SLEEP_CONTAINERS"
+
+    # Step 1: Load each model one at a time, then immediately sleep it
+    echo ""
+    echo "=== Phase 1: Loading and caching all models (one at a time) ==="
+    step=1
+    for container in $ALL_CONTAINERS; do
+        echo ""
+        echo "$step. Starting $container..."
+        docker compose -f "$COMPOSE_FILE" up -d "$container"
+        wait_for_health "$container"
+        
+        # Immediately put it to sleep to free VRAM for next model
+        host_port=$(docker compose -f "$COMPOSE_FILE" port "$container" 8000 2>/dev/null | cut -d: -f2 || echo "")
+        if [ -n "$host_port" ]; then
+            echo "   Putting $container to sleep to free VRAM..."
+            curl -s -X POST "http://localhost:$host_port/sleep" -H "Content-Type: application/json" -d '{"level": 1}' > /dev/null || echo "   (sleep command sent)"
+            sleep 3
+        fi
+        
+        step=$((step + 1))
+    done
+
+    # Step 2: Wake up only the active model
+    echo ""
+    echo "=== Phase 2: Activating default model ==="
+    ACTIVE_PORT=$(docker compose -f "$COMPOSE_FILE" port "$ACTIVE_CONTAINER" 8000 2>/dev/null | cut -d: -f2 || echo "")
+    if [ -n "$ACTIVE_PORT" ]; then
+        echo "   Waking up $ACTIVE_CONTAINER (port $ACTIVE_PORT)..."
+        curl -s -X POST "http://localhost:$ACTIVE_PORT/wake_up" > /dev/null || echo "   (wake_up command sent)"
+        sleep 3
+        wait_for_health "$ACTIVE_CONTAINER"
+    fi
 fi
 
 # Start model manager (will resync state)
 echo ""
-echo "=== Phase 3: Starting management services ==="
+echo "=== Starting management services ==="
 echo "Starting Model Manager..."
 docker compose -f "$COMPOSE_FILE" up -d model-manager
 sleep 5
