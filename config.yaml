@@ -7,7 +7,7 @@ models:
     container_name: "vllm-qwen3-vl-30b-a3b"
     port: 8000  # Internal container port
     host_port: 8001  # External host-mapped port
-    gpu_memory_gb: 54.0
+    gpu_memory_gb: 57.0
     startup_mode: active  # Options: disabled | sleep | active
 
   - id: gpt-oss-20b
@@ -16,7 +16,15 @@ models:
     port: 8000  # Internal container port
     host_port: 8002  # External host-mapped port
     gpu_memory_gb: 36.0
-    startup_mode: sleep  # Options: disabled | sleep | active
+    startup_mode: disabled  # Options: disabled | sleep | active
+  
+  - id: qwen3-next-80b-a3b-thinking
+    name: "Qwen 3 Next 80B A3B Thinking (AWQ)"
+    container_name: "vllm-qwen3-next-80b-a3b-thinking"
+    port: 8000  # Internal container port
+    host_port: 8003  # External host-mapped port
+    gpu_memory_gb: 63.0
+    startup_mode: disabled  # Options: disabled | sleep | active
 
 # Startup mode descriptions:
 # - disabled: Container not started at all

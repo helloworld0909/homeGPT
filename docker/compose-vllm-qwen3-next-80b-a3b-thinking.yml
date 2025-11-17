@@ -1,21 +1,25 @@
 services:
-  vllm-qwen3-vl-30b-a3b:
+  vllm-qwen3-next-80b-a3b-thinking:
     image: vllm/vllm-openai:nightly-x86_64
-    container_name: vllm-qwen3-vl-30b-a3b
+    container_name: vllm-qwen3-next-80b-a3b-thinking
     restart: unless-stopped
+    # Enforce eager execution to save GPU memory
     command: >
-      Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
-      --gpu-memory-utilization 0.90
-      --max-model-len 262144
-      --max-num-batched-tokens 49152
+      cpatonn/Qwen3-Next-80B-A3B-Thinking-AWQ-4bit
+      --gpu-memory-utilization 0.79
+      --max-model-len 90000
+      --max-num-batched-tokens 8192
       --kv-cache-dtype fp8
       --tensor-parallel-size 2
+      --max-num-seqs 10
+      --enforce-eager 
       --enable-chunked-prefill
       --enable-sleep-mode 
       --enable-auto-tool-choice 
       --tool-call-parser hermes
+      --reasoning-parser qwen3
     ports:
-      - "8001:8000"
+      - "8003:8000"
     deploy:
       resources:
         reservations:
@@ -26,7 +30,7 @@ services:
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
       - ../vllm-logging.json:/logs/logging.json:ro
-      - ../logs/qwen3-vl-30b-a3b:/logs
+      - ../logs/qwen3-next-80b-a3b-thinking:/logs
       - ~/.cache/vllm:/root/.cache/vllm             # Persist vllm cache
       - ~/.cache/triton:/root/.triton/cache         # Persist Triton kernels
       - ~/.cache/flashinfer:/root/.cache/flashinfer # Persist FlashInfer kernels

@@ -36,7 +36,6 @@ services:
       - VLLM_HOST_IP=127.0.0.1
       - VLLM_CONFIGURE_LOGGING=1
       - VLLM_LOGGING_CONFIG_PATH=/logs/logging.json
-      - MODEL_NAME=gptoss
     ipc: host
     networks:
       - homegpt-network
