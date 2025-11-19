@@ -1,21 +1,22 @@
 services:
-  vllm-qwen3-vl-30b-a3b:
+  vllm-qwen3-vl-32b:
     image: vllm/vllm-openai:v0.11.1
-    container_name: vllm-qwen3-vl-30b-a3b
+    container_name: vllm-qwen3-vl-32b
     restart: unless-stopped
     command: >
-      Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
-      --gpu-memory-utilization 0.90
-      --max-model-len 262144
-      --max-num-batched-tokens 49152
+      Qwen/Qwen3-VL-32B-Instruct-FP8
+      --gpu-memory-utilization 0.95
+      --max-model-len 64k
+      --max-num-batched-tokens 16k
       --kv-cache-dtype fp8
+      --disable-mm-preprocessor-cache
       --tensor-parallel-size 2
       --enable-chunked-prefill
       --enable-sleep-mode 
       --enable-auto-tool-choice 
       --tool-call-parser hermes
     ports:
-      - "8001:8000"
+      - "8002:8000"
     deploy:
       resources:
         reservations:
@@ -26,7 +27,7 @@ services:
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
       - ../vllm-logging.json:/logs/logging.json:ro
-      - ../logs/qwen3-vl-30b-a3b:/logs
+      - ../logs/qwen3-vl-32b:/logs
       - ~/.cache/vllm:/root/.cache/vllm             # Persist vllm cache
       - ~/.cache/triton:/root/.triton/cache         # Persist Triton kernels
       - ~/.cache/flashinfer:/root/.cache/flashinfer # Persist FlashInfer kernels

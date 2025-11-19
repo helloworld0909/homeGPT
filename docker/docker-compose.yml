@@ -4,6 +4,7 @@ name: home-gpt
 include:
   - compose-model-manager.yml
   - compose-vllm-qwen3-vl-30b-a3b.yml
+  - compose-vllm-qwen3-vl-32b.yml
   - compose-vllm-gpt-oss-20b.yml
   - compose-vllm-qwen3-next-80b-a3b-thinking.yml
   - compose-webui.yml

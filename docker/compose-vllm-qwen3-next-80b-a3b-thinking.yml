@@ -1,6 +1,6 @@
 services:
   vllm-qwen3-next-80b-a3b-thinking:
-    image: vllm/vllm-openai:nightly-x86_64
+    image: vllm/vllm-openai:v0.11.1
     container_name: vllm-qwen3-next-80b-a3b-thinking
     restart: unless-stopped
     # Enforce eager execution to save GPU memory

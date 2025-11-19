@@ -8,8 +8,8 @@ services:
       - open-webui:/app/backend/data
     environment:
       # Multiple OpenAI-compatible endpoints
-      - OPENAI_API_BASE_URLS=http://vllm-qwen3-vl-30b-a3b:8000/v1;http://vllm-gpt-oss-20b:8000/v1;http://vllm-qwen3-next-80b-a3b-thinking:8000/v1
-      - OPENAI_API_KEYS=dummy;dummy;dummy
+      - OPENAI_API_BASE_URLS=http://vllm-qwen3-vl-30b-a3b:8000/v1;http://vllm-qwen3-vl-32b:8000/v1;http://vllm-gpt-oss-20b:8000/v1;http://vllm-qwen3-next-80b-a3b-thinking:8000/v1
+      - OPENAI_API_KEYS=dummy;dummy;dummy;dummy
       # Model Manager for hot-swapping
       - MODEL_MANAGER_URL=http://model-manager:9000
       # Enable model filtering
