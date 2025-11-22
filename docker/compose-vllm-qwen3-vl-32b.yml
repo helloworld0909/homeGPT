@@ -2,7 +2,7 @@ services:
   vllm-qwen3-vl-32b:
     image: vllm/vllm-openai:v0.11.1
     container_name: vllm-qwen3-vl-32b
-    restart: unless-stopped
+    restart: on-failure
     command: >
       Qwen/Qwen3-VL-32B-Instruct-FP8
       --gpu-memory-utilization 0.95

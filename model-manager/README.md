@@ -246,16 +246,26 @@ List all models and their current status.
     {
       "id": "qwen3-vl-30b",
       "name": "Qwen3 VL 30B",
-      "endpoint": "http://vllm-qwen:8000",
-      "status": "active"
+      "container_name": "vllm-qwen3-vl-30b",
+      "port": 8000,
+      "host_port": 8001,
+      "gpu_memory_gb": 57.0,
+      "startup_mode": "active",
+      "status": "active",
+      "last_active": "2023-11-20T10:00:00Z"
     },
     {
       "id": "gpt-oss-20b",
       "name": "GPT-OSS 20B",
-      "endpoint": "http://vllm-gptoss:8000",
+      "container_name": "vllm-gpt-oss-20b",
+      "port": 8000,
+      "host_port": 8004,
+      "gpu_memory_gb": 36.0,
+      "startup_mode": "disabled",
       "status": "sleeping"
     }
-  ]
+  ],
+  "active_model": "qwen3-vl-30b"
 }
 ```
 
@@ -264,6 +274,7 @@ List all models and their current status.
 - `sleeping`: Model is asleep (offloaded or discarded)
 - `switching`: Model is currently transitioning
 - `error`: Model encountered an error
+- `disabled`: Model is disabled in configuration
 
 ### POST /switch
 Switch to a different model.
@@ -278,7 +289,8 @@ Switch to a different model.
 **Response (Success):**
 ```json
 {
-  "message": "Successfully switched to model gpt-oss-20b"
+  "status": "success",
+  "active_model": "gpt-oss-20b"
 }
 ```
 

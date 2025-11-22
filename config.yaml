@@ -8,7 +8,7 @@ models:
     port: 8000  # Internal container port
     host_port: 8001  # External host-mapped port
     gpu_memory_gb: 57.0
-    startup_mode: active  # Options: disabled | sleep | active
+    startup_mode: disabled  # Options: disabled | sleep | active
 
   - id: qwen3-vl-32b
     name: "Qwen 3 VL 32B (FP8)"
@@ -24,7 +24,7 @@ models:
     port: 8000  # Internal container port
     host_port: 8003  # External host-mapped port
     gpu_memory_gb: 63.0
-    startup_mode: disabled  # Options: disabled | sleep | active
+    startup_mode: active  # Options: disabled | sleep | active
 
   - id: gpt-oss-20b
     name: "GPT-OSS 20B"

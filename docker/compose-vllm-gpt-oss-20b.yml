@@ -2,7 +2,7 @@ services:
   vllm-gpt-oss-20b:
     image: vllm/vllm-openai:v0.11.1
     container_name: vllm-gpt-oss-20b
-    restart: unless-stopped
+    restart: on-failure
     command: >
       openai/gpt-oss-20b
       --gpu-memory-utilization 0.80

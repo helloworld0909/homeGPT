@@ -2,8 +2,7 @@ services:
   vllm-qwen3-next-80b-a3b-thinking:
     image: vllm/vllm-openai:v0.11.1
     container_name: vllm-qwen3-next-80b-a3b-thinking
-    restart: unless-stopped
-    # Enforce eager execution to save GPU memory
+    restart: on-failure
     command: >
       cpatonn/Qwen3-Next-80B-A3B-Thinking-AWQ-4bit
       --gpu-memory-utilization 0.79
