@@ -15,7 +15,7 @@ services:
       --enable-auto-tool-choice 
       --tool-call-parser hermes
     ports:
-      - "8001:8000"
+      - "${QWEN3_VL_30B_A3B_HOST_PORT}:8000"
     deploy:
       resources:
         reservations:

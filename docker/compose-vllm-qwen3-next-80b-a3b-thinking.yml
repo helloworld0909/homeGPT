@@ -17,7 +17,7 @@ services:
       --tool-call-parser hermes
       --reasoning-parser qwen3
     ports:
-      - "8003:8000"
+      - "${QWEN3_NEXT_80B_A3B_THINKING_HOST_PORT}:8000"
     deploy:
       resources:
         reservations:

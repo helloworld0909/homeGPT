@@ -3,9 +3,23 @@ set -e
 
 CONFIG_FILE="config.yaml"
 COMPOSE_FILE="docker/docker-compose.yml"
+ENV_FILE="docker/.env"
 
 echo "=== homeGPT Bootstrap ==="
 echo "Reading config from $CONFIG_FILE..."
+echo ""
+
+# Generate .env file from config.yaml
+echo "Generating $ENV_FILE from $CONFIG_FILE..."
+cat > "$ENV_FILE" << 'EOF'
+# Auto-generated from config.yaml - DO NOT EDIT MANUALLY
+# Regenerate by running bootstrap.sh
+EOF
+
+# Extract host ports for each model and write to .env
+yq -r '.models[] | "\(.id | gsub("-"; "_") | ascii_upcase)_HOST_PORT=\(.host_port)"' "$CONFIG_FILE" >> "$ENV_FILE"
+
+echo "✓ Generated $ENV_FILE"
 echo ""
 
 # Function to wait for vLLM health endpoint
