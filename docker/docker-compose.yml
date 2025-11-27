@@ -8,9 +8,7 @@ include:
   - compose-vllm-gpt-oss-20b.yml
   - compose-vllm-qwen3-next-80b-a3b-thinking.yml
   - compose-webui.yml
-  - compose-prometheus.yml
-  - compose-dcgm-exporter.yml
-  - compose-grafana.yml
+  - compose-monitoring.yml
 
 networks:
   homegpt-network:
