@@ -21,6 +21,8 @@ sudo apt install yq  # YAML parser for bootstrap script
 Access points:
 - Model Manager API: http://localhost:9000
 - Open WebUI: http://localhost:3000
+- Grafana Dashboard: http://localhost:3001 (admin/admin)
+- Prometheus: http://localhost:9090
 - vLLM Qwen3-VL-30B: http://localhost:8001
 - vLLM Qwen3-VL-32B: http://localhost:8002
 - vLLM Qwen3-Next-80B: http://localhost:8003
@@ -67,6 +69,21 @@ curl -X POST http://localhost:9000/switch \
                         │ vLLM GPT-OSS-20B         │ (Port 8004)
                         │ [Active/Sleep]           │
                         └──────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│                   Monitoring Stack                            │
+├──────────────────┬──────────────┬──────────────┬─────────────┤
+│   Prometheus     │   Grafana    │     Loki     │ DCGM Export │
+│   (Port 9090)    │ (Port 3001)  │ (Port 3100)  │ (Port 9400) │
+│  Metrics Store   │  Dashboards  │ Log Aggreg.  │ GPU Metrics │
+└──────────────────┴──────────────┴──────────────┴─────────────┘
+           │                │              │              │
+           └────────────────┴──────────────┴──────────────┘
+                                   │
+                          ┌────────┴─────────┐
+                          │    Promtail      │
+                          │  Log Collector   │
+                          └──────────────────┘
 ```
 
 ## Project Structure
@@ -87,11 +104,22 @@ homeGPT/
 ├── docker/                 # Modular Docker Compose files
 │   ├── docker-compose.yml  # Main orchestration (includes all)
 │   ├── compose-model-manager.yml
+│   ├── compose-monitoring.yml     # Monitoring stack
 │   ├── compose-vllm-qwen3-vl-30b-a3b.yml
 │   ├── compose-vllm-qwen3-vl-32b.yml
 │   ├── compose-vllm-qwen3-next-80b-a3b-thinking.yml
 │   ├── compose-vllm-gpt-oss-20b.yml
 │   └── compose-webui.yml
+├── monitoring/             # Monitoring configuration
+│   ├── prometheus.yml      # Prometheus config & scrape targets
+│   ├── loki-config.yml     # Loki log aggregation config
+│   ├── promtail-config.yml # Promtail log collection config
+│   ├── grafana-datasources.yml  # Grafana data sources
+│   ├── grafana-dashboards.yml   # Grafana dashboard provisioning
+│   └── grafana/
+│       └── dashboards/
+│           ├── gpu-metrics.json   # GPU monitoring dashboard
+│           └── vllm-metrics.json  # vLLM performance dashboard
 ├── logs/                   # vLLM server logs
 │   ├── qwen3-vl-30b-a3b/
 │   ├── qwen3-vl-32b/
@@ -115,6 +143,25 @@ homeGPT/
   - Memory-aware sleep level selection (Level 1 vs Level 2)
   - Health monitoring with configurable retry logic
   - RESTful HTTP API
+
+### Monitoring Stack
+- **Prometheus** (Port 9090) - Metrics collection and storage
+  - Scrapes vLLM metrics endpoints
+  - Collects GPU metrics from DCGM Exporter
+  - Stores time-series data for dashboards
+- **Grafana** (Port 3001) - Visualization and dashboards
+  - Pre-configured dashboards for GPU metrics and vLLM performance
+  - Default credentials: admin/admin
+  - Auto-provisioned data sources (Prometheus, Loki)
+- **Loki** (Port 3100) - Log aggregation
+  - Centralized log storage for all vLLM instances
+  - Queryable through Grafana
+- **Promtail** - Log collector
+  - Scrapes logs from `logs/` directory
+  - Ships logs to Loki with metadata labels
+- **DCGM Exporter** (Port 9400) - NVIDIA GPU metrics
+  - Exposes detailed GPU utilization, memory, temperature
+  - Compatible with Prometheus
 
 ### Model Manager API Endpoints
 - `GET /health` - Service health check
@@ -622,6 +669,51 @@ The `bootstrap.sh` script handles the complex startup sequence required for mult
    - `VLLM_SERVER_DEV_MODE=1` is required for sleep endpoints
    - Not recommended for production deployments per vLLM docs
 
+## Monitoring and Observability
+
+### Accessing Dashboards
+
+1. **Grafana Dashboards** (http://localhost:3001)
+   - Login with `admin/admin`
+   - Navigate to "Dashboards" to view:
+     - **GPU Metrics**: Real-time GPU utilization, memory, temperature
+     - **vLLM Metrics**: Request latency, throughput, model performance
+
+2. **Prometheus** (http://localhost:9090)
+   - Query metrics directly using PromQL
+   - View scrape targets and their health status
+   - Explore available metrics from vLLM and DCGM
+
+3. **Log Queries**
+   - View logs in Grafana's "Explore" section
+   - Filter by container name, log level, or search terms
+   - Correlate logs with metrics for debugging
+
+### Key Metrics to Monitor
+
+**GPU Metrics (from DCGM):**
+- `DCGM_FI_DEV_GPU_UTIL` - GPU utilization percentage
+- `DCGM_FI_DEV_FB_USED` - GPU memory used (bytes)
+- `DCGM_FI_DEV_GPU_TEMP` - GPU temperature (Celsius)
+- `DCGM_FI_DEV_POWER_USAGE` - Power consumption (Watts)
+
+**vLLM Metrics:**
+- Request latency and throughput
+- Model-specific performance metrics
+- Error rates and health status
+
+### Log Analysis
+
+Logs are automatically collected from all vLLM instances:
+- **Location:** `logs/<model-name>/vllm-server.log.*`
+- **Retention:** Rotated daily, stored in Loki for querying
+- **Access:** Query through Grafana's Explore view or Loki API
+
+Example Loki query:
+```logql
+{container_name="vllm-qwen3-vl-32b"} |= "error"
+```
+
 ## Future Enhancements
 
 - [ ] WebSocket support for real-time status updates
@@ -630,10 +722,10 @@ The `bootstrap.sh` script handles the complex startup sequence required for mult
 - [ ] Model usage statistics and logging
 - [ ] Support for multiple GPUs per model
 - [ ] Graceful shutdown with state persistence
-- [ ] Prometheus metrics export
-- [ ] Admin dashboard for monitoring
-
-- [ ] Admin dashboard for monitoring
+- [x] Prometheus metrics export
+- [x] Admin dashboard for monitoring
+- [ ] Alerting rules for GPU/memory thresholds
+- [ ] Model performance comparison dashboards
 
 ## Prerequisites (Docker Setup)
 
