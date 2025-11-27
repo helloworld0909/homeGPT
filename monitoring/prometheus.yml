@@ -1,0 +1,46 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'homeGPT'
+
+scrape_configs:
+  # vLLM Model Servers - Scrape metrics from all deployed models
+  - job_name: 'vllm-qwen3-vl-30b-a3b'
+    static_configs:
+      - targets: ['vllm-qwen3-vl-30b-a3b:8000']
+        labels:
+          model: 'qwen3-vl-30b-a3b'
+          model_family: 'qwen3-vl'
+          size: '30b'
+
+  - job_name: 'vllm-qwen3-vl-32b'
+    static_configs:
+      - targets: ['vllm-qwen3-vl-32b:8000']
+        labels:
+          model: 'qwen3-vl-32b'
+          model_family: 'qwen3-vl'
+          size: '32b'
+
+  - job_name: 'vllm-qwen3-next-80b-a3b-thinking'
+    static_configs:
+      - targets: ['vllm-qwen3-next-80b-a3b-thinking:8000']
+        labels:
+          model: 'qwen3-next-80b-a3b-thinking'
+          model_family: 'qwen3-next'
+          size: '80b'
+
+  - job_name: 'vllm-gpt-oss-20b'
+    static_configs:
+      - targets: ['vllm-gpt-oss-20b:8000']
+        labels:
+          model: 'gpt-oss-20b'
+          model_family: 'gpt-oss'
+          size: '20b'
+
+  # NVIDIA DCGM Exporter - GPU metrics (utilization, memory, temperature, power)
+  - job_name: 'dcgm-exporter'
+    static_configs:
+      - targets: ['dcgm-exporter:9400']
+        labels:
+          instance: 'homeGPT-gpu'

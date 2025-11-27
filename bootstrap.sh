@@ -126,9 +126,25 @@ sleep 5
 echo "Starting WebUI..."
 docker compose -f "$COMPOSE_FILE" up -d webui
 
+# Start monitoring services
+echo ""
+echo "=== Starting monitoring services ==="
+echo "Starting DCGM Exporter..."
+docker compose -f "$COMPOSE_FILE" up -d dcgm-exporter
+sleep 2
+
+echo "Starting Prometheus..."
+docker compose -f "$COMPOSE_FILE" up -d prometheus
+sleep 2
+
+echo "Starting Grafana..."
+docker compose -f "$COMPOSE_FILE" up -d grafana
+
 echo ""
 echo "=== Done ==="
 echo "WebUI: http://localhost:3000"
 echo "Model Manager: http://localhost:9000"
+echo "Grafana: http://localhost:3001 (admin/admin)"
+echo "Prometheus: http://localhost:9090"
 echo ""
 echo "Active model: $ACTIVE_MODEL ($ACTIVE_CONTAINER)"
