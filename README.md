@@ -22,7 +22,7 @@ Access points:
 - Model Manager API: http://localhost:9000
 - Open WebUI: http://localhost:3000
 - Grafana Dashboard: http://localhost:3001 (admin/admin)
-- Prometheus: http://localhost:9090
+- Prometheus: http://localhost:9091
 - vLLM Qwen3-VL-30B: http://localhost:8001
 - vLLM Qwen3-VL-32B: http://localhost:8002
 - vLLM Qwen3-Next-80B: http://localhost:8003
@@ -74,7 +74,7 @@ curl -X POST http://localhost:9000/switch \
 │                   Monitoring Stack                            │
 ├──────────────────┬──────────────┬──────────────┬─────────────┤
 │   Prometheus     │   Grafana    │     Loki     │ DCGM Export │
-│   (Port 9090)    │ (Port 3001)  │ (Port 3100)  │ (Port 9400) │
+│   (Port 9091)    │ (Port 3001)  │ (Port 3100)  │ (Port 9400) │
 │  Metrics Store   │  Dashboards  │ Log Aggreg.  │ GPU Metrics │
 └──────────────────┴──────────────┴──────────────┴─────────────┘
            │                │              │              │
@@ -145,7 +145,7 @@ homeGPT/
   - RESTful HTTP API
 
 ### Monitoring Stack
-- **Prometheus** (Port 9090) - Metrics collection and storage
+- **Prometheus** (Port 9091) - Metrics collection and storage
   - Scrapes vLLM metrics endpoints
   - Collects GPU metrics from DCGM Exporter
   - Stores time-series data for dashboards
@@ -679,7 +679,7 @@ The `bootstrap.sh` script handles the complex startup sequence required for mult
      - **GPU Metrics**: Real-time GPU utilization, memory, temperature
      - **vLLM Metrics**: Request latency, throughput, model performance
 
-2. **Prometheus** (http://localhost:9090)
+2. **Prometheus** (http://localhost:9091)
    - Query metrics directly using PromQL
    - View scrape targets and their health status
    - Explore available metrics from vLLM and DCGM

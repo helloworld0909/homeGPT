@@ -50,6 +50,7 @@ func main() {
 	r.GET("/health", h.Health)
 	r.GET("/models", h.GetModels)
 	r.POST("/switch", h.SwitchModel)
+	r.Any("/v1/*path", h.ProxyHandler)
 
 	// Start server
 	port := os.Getenv("PORT")
