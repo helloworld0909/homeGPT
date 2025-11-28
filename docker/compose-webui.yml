@@ -1,7 +1,7 @@
 services:
   webui:
     image: ghcr.io/open-webui/open-webui:main
-    restart: unless-stopped
+    restart: on-failure
     ports:
       - "3000:8080"
     volumes:

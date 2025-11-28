@@ -1,6 +1,6 @@
 services:
   vllm-qwen3-next-80b-a3b-thinking:
-    image: vllm/vllm-openai:v0.11.1
+    image: vllm/vllm-openai:v0.11.2
     container_name: vllm-qwen3-next-80b-a3b-thinking
     restart: on-failure
     command: >

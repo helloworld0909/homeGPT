@@ -1,6 +1,6 @@
 services:
   vllm-qwen3-vl-32b:
-    image: vllm/vllm-openai:v0.11.1
+    image: vllm/vllm-openai:v0.11.2
     container_name: vllm-qwen3-vl-32b
     restart: on-failure
     command: >

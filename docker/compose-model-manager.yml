@@ -3,7 +3,7 @@ services:
     build:
       context: ../model-manager
       dockerfile: Dockerfile
-    restart: unless-stopped
+    restart: on-failure
     ports:
       - "9000:9000"
     volumes:
