@@ -2,6 +2,24 @@
 
 A production-ready system for running multiple vLLM models with hot-swapping capability using vLLM's sleep mode feature. This enables efficient GPU memory management by putting inactive models to sleep (offloading to CPU RAM or discarding weights) while keeping the active model on GPU.
 
+**Current vLLM Version:** v0.13.0
+
+## What's New in v0.13.0
+
+- **Qwen3-VL Enhancements**: EVS (Efficient Video Sampling) support and embeddings API
+- **Performance**: 3x faster Whisper inference, DeepSeek V3.2 optimizations (up to 10.7% TTFT improvement)
+- **Quantization**: W4A8 grouped GEMM on Hopper GPUs, MoE + LoRA support for AWQ/GPTQ
+- **Hardware**: NVIDIA Blackwell Ultra (GB300) support with CUDA 13
+- **API**: Model Context Protocol (MCP) integration, binary embeddings format
+
+## Recent Updates
+
+- **2025-12-30**: Upgraded to vLLM v0.13.0
+- **2025-12-02**: Bumped vLLM to v0.11.2 across all model containers
+- **2025-11-27**: Added comprehensive monitoring stack (Prometheus, Grafana, Loki, DCGM)
+- **2025-11-26**: Refactored to use `config.yaml` as single source of truth for port mappings
+- **2025-11-25**: Added Qwen3-Next-80B-A3B-Thinking model support
+
 ## Quick Start
 
 ```bash
@@ -174,7 +192,7 @@ homeGPT/
   ```
 
 ### vLLM Sleep Mode
-vLLM v0.11.0+ supports two sleep levels:
+vLLM v0.13.0 supports two sleep levels:
 - **Level 1:** Offload model weights to CPU RAM (fast wake-up, requires RAM)
 - **Level 2:** Discard model weights entirely (slow wake-up, no RAM needed)
 
@@ -210,7 +228,7 @@ Create `docker/compose-vllm-<model-name>.yml` following the naming convention:
 ```yaml
 services:
   vllm-<model-name>:
-    image: vllm/vllm-openai:nightly-x86_64  # Use nightly for latest features
+    image: vllm/vllm-openai:v0.13.0        # Pinned version for stability
     container_name: vllm-<model-name>
     restart: unless-stopped
     command: >
@@ -256,7 +274,7 @@ services:
 ```yaml
 services:
   vllm-qwen3-vl-32b:
-    image: vllm/vllm-openai:nightly-x86_64
+    image: vllm/vllm-openai:v0.13.0
     container_name: vllm-qwen3-vl-32b
     restart: unless-stopped
     command: >
